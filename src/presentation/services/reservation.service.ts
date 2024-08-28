@@ -44,7 +44,7 @@ export class ReservationService {
         try {
             const amountOfReservations = await ReservationModel.find({ restaurantName: reservationDto.restaurantName, restaurantAddress: reservationDto.restaurantAddress , date: reservationDto.date}).countDocuments();
             
-            if (amountOfReservations > 15) throw CustomError.badRequest('Restaurant is full');
+            if (amountOfReservations >= 15) throw CustomError.badRequest('Restaurant is full');
 
             const reservations = await ReservationModel.find({ tableNumber: reservationDto.tableNumber, date: reservationDto.date}).countDocuments();
             
