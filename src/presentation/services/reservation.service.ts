@@ -1,12 +1,16 @@
-import { ReservationModel, UserModel } from "../../data";
+import { EmailService } from "..";
+import { ReservationModel, RestaurantModel, UserModel } from "../../data";
 import { CustomError, ReservationDto } from "../../domain";
 
 export class ReservationService {
-    constructor() {}
+    constructor(
+        private readonly emailService: EmailService,
+    ) {}
 
-    async getReservationsByRestaurantId(restaurantId: string) {
+    async getReservationsByRestaurantName(restaurantName: string) {
         try {
-            const reservations = await ReservationModel.find({ restaurantId });
+            const reservations = await ReservationModel.find({ restaurantName: new RegExp(`^${restaurantName}$`, 'i') });
+            if (reservations.length === 0) throw CustomError.notFound('Reservations not found');
             return {
                 total           : reservations.length,
                 reservations    : reservations.map((reservation) => ({
@@ -38,20 +42,50 @@ export class ReservationService {
 
     async createReservation(reservationDto: ReservationDto) {
         try {
-            const reservations = await ReservationModel.find({ tableNumber: reservationDto.tableNumber, date: reservationDto.date}).countDocuments();
-            console.log(reservations);
-            if ( reservations > 0) throw CustomError.badRequest('Table is already reserved');
-            
             const amountOfReservations = await ReservationModel.find({ restaurantName: reservationDto.restaurantName, restaurantAddress: reservationDto.restaurantAddress , date: reservationDto.date}).countDocuments();
             
+            if (amountOfReservations > 15) throw CustomError.badRequest('Restaurant is full');
+
+            const reservations = await ReservationModel.find({ tableNumber: reservationDto.tableNumber, date: reservationDto.date}).countDocuments();
+            
+            if ( reservations > 0) throw CustomError.badRequest('Table is already reserved');
+            
+
+
             const user = await UserModel.findById(reservationDto.userId);
-            if (amountOfReservations > 15) {
-                throw CustomError.badRequest('Restaurant is full');
-            }
+            const { email } = user as { email: string };
             const reservation = new ReservationModel(reservationDto);
             
             await reservation.save();
+
+            const reservationsDate = await RestaurantModel.findOne({
+                _id: reservationDto.restaurantId,
+                "reservationsDone.date": reservationDto.date,
+            });
             
+            if (reservationsDate) {
+                await RestaurantModel.findOneAndUpdate(
+                    { _id: reservationDto.restaurantId, "reservationsDone.date": reservationDto.date },
+                    { $inc: { "reservationsDone.$.count": 1 } }
+                );
+            } else {
+                // Si no existe, añade un nuevo objeto a reservationsDone
+                await RestaurantModel.findOneAndUpdate(
+                    { _id: reservationDto.restaurantId },
+                    { $push: { reservationsDone: { date: reservationDto.date, count: 1 } } },
+                    { new: true }
+                );
+            }
+
+            const emailSent = await this.emailService.sendEmail({
+                to: email,
+                subject: 'Reservation created',
+                htmlBody: `Your reservation for ${reservationDto.restaurantName} has been created for the ${reservationDto.date}`,
+            });
+
+            if (!emailSent) {
+                console.log('Email not sent');
+            }
             
             return {
                 id                  : reservation._id,
@@ -62,6 +96,9 @@ export class ReservationService {
 
 
         } catch (error) {
+            if (error instanceof CustomError) {
+                throw error;
+            }
             throw CustomError.internalServer('Internal server error');
         }
     }

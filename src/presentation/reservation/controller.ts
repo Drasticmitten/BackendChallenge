@@ -11,12 +11,18 @@ export class ReservationController {
 
     private handleError = ( error: unknown, res: Response ) => {
         if ( error instanceof CustomError ) {
-          return res.status( error.statusCode ).json( { error: error.message } );
+        return res.status( error.statusCode ).json( { error: error.message } );
         }
     
         console.log( `${ error }` );
         return res.status( 500 ).json( { error: 'Internal server error' } );
-      };
+    };
+
+    getReservations = async (req: Request, res: Response) => {
+        this.reservationService.getAllReservations()
+            .then((data) => res.json(data))
+            .catch((error) => this.handleError(error, res));
+    }
 
     createReservation = async (req: Request, res: Response) => {
         try {
@@ -54,7 +60,8 @@ export class ReservationController {
             }
 
             this.reservationService.createReservation(reservation!)
-                .then((data) => res.json(data))
+                .then((data) => {
+                    res.json(data);})
                 .catch((error) => this.handleError(error, res));
 
         } catch (error) {
@@ -62,4 +69,12 @@ export class ReservationController {
             this.handleError(error, res);
         }
     }
+
+    getReservationsByRestaurant = async (req: Request, res: Response) => {
+        this.reservationService.getReservationsByRestaurantName(req.params.restaurantName)
+            .then((data) => res.json(data))
+            .catch(error => this.handleError(error, res));
+    }
+
+
 }

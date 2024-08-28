@@ -1,5 +1,16 @@
 import { model, Schema } from "mongoose";
 
+const reservationsDoneSchema = new Schema({
+    date: {
+        type: String, 
+        required: true,
+    },
+    count: {
+        type: Number,
+        default: 0,
+    }
+}, { _id: false });
+
 const resturantSchema = new Schema({
     name: {
         type: String,
@@ -26,8 +37,8 @@ const resturantSchema = new Schema({
         required: [true, 'Photo is required'],
     },
     reservationsDone: {
-        type: Number,
-        default: 0,
+        type: [reservationsDoneSchema],
+        default: [],
     },
     
 });
